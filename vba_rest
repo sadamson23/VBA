@@ -1,0 +1,116 @@
+'USEFUL REFERENCE
+ 'https://nestle.service-now.com/api/now/attachment?sysparm_query=table_sys_id=000caa86db0e64500a8a18fe3b961949
+ 'https://nestledemo1.service-now.com/api/now/attachment?sysparm_query=table_sys_id=d88b1f861bca20d025456428bd4bcb62
+ 'https://docs.microsoft.com/en-us/previous-versions/windows/desktop/ms757849(v=vs.85)
+ 'oXMLHttpRequest.open(bstrMethod, bstrUrl, varAsync, bstrUser, bstrPassword);
+  
+'Dim FSO As New FileSystemObject
+ Option Explicit
+ 
+Function getAttach()
+
+ Dim objRequest As Object
+ Dim strUrl As String
+ Dim blnAsync As Boolean
+ Dim strResponse As String
+ Dim binaryResponse
+ Dim Json As Object
+ Dim table_sys_id As String
+ Dim sys_id As String
+ Dim username
+ Dim password
+ Dim myFilename
+ Dim nFileNum
+  
+ username = "xxxxx"
+ password = "xxxxx"
+ Range("A2").Select
+ 
+ Set objRequest = CreateObject("MSXML2.XMLHTTP")
+ 
+ While ActiveCell().Value <> ""
+ 
+         strUrl = "https://nestledemo1.service-now.com/api/now/attachment?sysparm_query=table_sys_id=" + ActiveCell().Value
+         blnAsync = True
+        
+            With objRequest
+                .Open "GET", strUrl, blnAsync, username, password
+                .setRequestHeader "Content-Type", "application/json"
+                .setRequestHeader "Accept", "application/json"
+                .Send
+                
+                'spin wheels whilst waiting for response
+                While objRequest.readyState <> 4
+                    DoEvents
+                Wend
+                strResponse = .ResponseText
+            End With
+        
+        ' Parse the JSON response
+        Set Json = JsonConverter.ParseJson(strResponse)
+        
+        'Debug.Print JsonConverter.ConvertToJson(Json)
+        'Debug.Print "Filename: " + Json("result")(1)("file_name")
+        'Debug.Print "Sys_ID: " + Json("result")(1)("sys_id")
+
+'Write to Excel
+sys_id = Json("result")(1)("sys_id")
+myFilename = Json("result")(1)("file_name")
+
+ActiveCell().Offset(0, 2).Value = sys_id
+ActiveCell().Offset(0, 3).Value = ActiveCell().Offset(0, 1).Value + "_" + myFilename
+
+' Now make 2nd REST call to get binary data
+'https://nestledemo1.service-now.com/api/now/attachment/00019de4dbdcac50fb827e94f3961922/file
+
+Set objRequest = CreateObject("MSXML2.XMLHTTP")
+        strUrl = "https://nestledemo1.service-now.com/api/now/attachment/" + sys_id + "/file"
+         blnAsync = True
+        
+            With objRequest
+                .Open "GET", strUrl, blnAsync, username, password
+                .setRequestHeader "Content-Type", "multipart/form-data"
+                .setRequestHeader "Accept", "application/json"
+                .Send
+                
+                'spin wheels whilst waiting for response
+                While objRequest.readyState <> 4
+                    DoEvents
+                Wend
+                binaryResponse = .responseBody
+            End With
+
+
+'objRequest.responseBody
+'"c:\temp\" + myFilename
+
+' nFileNum = FreeFile
+' Open "c:\temp\" + myFilename For Binary Access Write As nFileNum
+' Save binary
+' Put #nFileNum, 1, binaryResponse
+' Close the file
+' Close #nFileNum
+
+            ActiveCell().Offset(1, 0).Select
+            
+
+            Set objRequest = Nothing
+
+Wend
+End Function
+
+Function saveFile(binary, file)
+
+ Dim fileStream As ADODB.Stream
+            Set fileStream = New ADODB.Stream
+            With fileStream
+                   .Open
+                   .Type = adTypeBinary
+                   .Write binary
+                   .Position = 0
+                   .SaveToFile file, 2
+                   .Close
+            End With
+            Set fileStream = Nothing
+End Function
+
